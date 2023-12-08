@@ -1,0 +1,65 @@
+version: '3'
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - 27017:27017
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 123456
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - elk-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.0
+    ports:
+      - 9200:9200
+    environment:
+      - discovery.type=single-node
+    networks:
+      - elk-network
+
+  logstash:
+    build:
+      context: .
+      dockerfile: logstash/Dockerfile
+    volumes:
+      - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - 9600:9600 # Optional, for Logstash monitoring
+    networks:
+      - elk-network
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - elasticsearch.username=elastic
+      - elasticsearch.password=root
+      - MONGO_USERNAME=root
+      - MONGO_PASSWORD=123456
+    depends_on:
+      - mongodb
+      - elasticsearch
+
+
+  app:
+    build:
+     context: .
+     dockerfile: app/Dockerfile
+    container_name: app
+    volumes:
+     - .:/app
+    networks:
+      - elk-network
+    depends_on:
+      - mongodb
+      - elasticsearch
+      - logstash
+
+networks:
+  elk-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
